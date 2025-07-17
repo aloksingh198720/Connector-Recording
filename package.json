@@ -1,0 +1,53 @@
+{
+  "name": "connector-recording-desktop",
+  "version": "1.0.0",
+  "description": "Desktop automation app with Electron, React, and Python backend (subprocess)",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "dev": "concurrently \"npm:dev:renderer\" \"npm:dev:electron\" --kill-others",
+    "dev:renderer": "vite",
+    "dev:electron": "wait-on tcp:3000 && electron .",
+    "dev:start": "start npm run dev:renderer && timeout /t 3 && npm run dev:electron",
+    "dev:windows": "start-dev.bat",
+    "dev:ps": "powershell -ExecutionPolicy Bypass -File start-dev.ps1",
+    "dev:simple": "start-simple.bat",
+    "build:main": "tsc --project tsconfig.main.json",
+    "build:renderer": "vite build",
+    "build": "npm run build:main && npm run build:renderer",
+    "preview": "vite preview",
+    "electron": "electron .",
+    "start": "npm run build && npm run electron",
+    "install:python": "pip install -r requirements.txt",
+    "setup": "npm install && npm run install:python"
+  },
+  "keywords": [
+    "electron",
+    "react",
+    "python",
+    "desktop",
+    "automation"
+  ],
+  "author": "Connector Recording Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.8.0",
+    "@types/react": "^18.2.31",
+    "@types/react-dom": "^18.2.14",
+    "@vitejs/plugin-react": "^4.1.0",
+    "autoprefixer": "^10.4.16",
+    "concurrently": "^8.2.2",
+    "electron": "^27.0.0",
+    "postcss": "^8.4.31",
+    "tailwindcss": "^3.3.3",
+    "typescript": "^5.2.2",
+    "vite": "^4.4.11",
+    "wait-on": "^7.0.1"
+  },
+  "dependencies": {
+    "framer-motion": "^10.16.4",
+    "fs-extra": "^11.1.1",
+    "lucide-react": "^0.263.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+} 

@@ -1,0 +1,42 @@
+{
+  "application_name": "SSMS.exe\"",
+  "application_path": "\"C:\\Program Files\\Microsoft SQL Server Management Studio 21\\Release\\Common7\\IDE\\SSMS.exe\"",
+  "session_timestamp": "2025-07-17T14:25:41.569866",
+  "screenshots": [
+    {
+      "image_name": "Servername",
+      "image_path": "C:\\Connector Recording\\python_backend\\screenshots\\SSMS\\Servername_20250717_142541.png",
+      "description": "hihihi",
+"key":"synapseaccess.database.windows.net,1433",
+      "timestamp": "2025-07-17T08:54:05.672Z"
+    },
+    {
+      "image_name": "Authentication",
+      "image_path": "C:\\Connector Recording\\python_backend\\screenshots\\SSMS\\Authentication_20250717_142541.png",
+      "description": "Authentication Select Box",
+"key":"SQl Server Authentication",
+      "timestamp": "2025-07-17T08:54:28.685Z"
+    },
+    {
+      "image_name": "UserName",
+      "image_path": "C:\\Connector Recording\\python_backend\\screenshots\\SSMS\\UserName_20250717_142541.png",
+      "description": "User Name",
+"key":"alok",
+      "timestamp": "2025-07-17T08:54:48.727Z"
+    },
+    {
+      "image_name": "Password",
+      "image_path": "C:\\Connector Recording\\python_backend\\screenshots\\SSMS\\Password_20250717_142541.png",
+      "description": "Password Input box",
+"key":"alok",
+      "timestamp": "2025-07-17T08:55:08.874Z"
+    },
+    {
+      "image_name": "Connect",
+      "image_path": "C:\\Connector Recording\\python_backend\\screenshots\\SSMS\\Connect_20250717_142541.png",
+      "description": "Button Connect",
+"key":"",
+      "timestamp": "2025-07-17T08:55:30.657Z"
+    }
+  ]
+}

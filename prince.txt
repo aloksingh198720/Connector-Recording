@@ -1,0 +1,191 @@
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import psutil
+import os
+import time
+from datetime import datetime
+import threading
+import pyautogui
+import cv2
+
+app = Flask(__name__)
+CORS(app)
+
+# Global variables
+recording = False
+screenshots_dir = "screenshots"
+current_app = None
+
+# Ensure screenshots directory exists
+os.makedirs(screenshots_dir, exist_ok=True)
+
+@app.route('/api/command', methods=['POST'])
+def handle_command():
+    try:
+        command = request.json
+        command_type = command.get('type')
+        data = command.get('data', {})
+        
+        if command_type == 'get_running_apps':
+            return get_running_apps()
+        elif command_type == 'capture_screenshot':
+            return capture_screenshot(data.get('application'))
+        elif command_type == 'start_recording':
+            return start_recording(data.get('application'))
+        elif command_type == 'stop_recording':
+            return stop_recording()
+        elif command_type == 'get_screenshots':
+            return get_screenshots()
+        else:
+            return jsonify({'success': False, 'error': f'Unknown command: {command_type}'})
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+def get_running_apps():
+    """Get list of running applications"""
+    try:
+        apps = []
+        for proc in psutil.process_iter(['pid', 'name']):
+            try:
+                # Get process info
+                pinfo = proc.info
+                if pinfo['name'] and pinfo['name'] != 'System Idle Process':
+                    apps.append({
+                        'name': pinfo['name'],
+                        'pid': pinfo['pid'],
+                        'windowTitle': pinfo['name']  # Simplified - you might want to get actual window titles
+                    })
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        
+        # Remove duplicates and sort
+        unique_apps = []
+        seen_names = set()
+        for app in apps:
+            if app['name'] not in seen_names:
+                seen_names.add(app['name'])
+                unique_apps.append(app)
+        
+        unique_apps.sort(key=lambda x: x['name'])
+        
+        return jsonify({
+            'success': True,
+            'apps': unique_apps[:50]  # Limit to 50 apps
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+def capture_screenshot(application):
+    """Capture screenshot for specific application"""
+    try:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"screenshot_{application}_{timestamp}.png"
+        filepath = os.path.join(screenshots_dir, filename)
+        
+        # Take screenshot using pyautogui
+        screenshot = pyautogui.screenshot()
+        screenshot.save(filepath)
+        
+        return jsonify({
+            'success': True,
+            'filepath': os.path.abspath(filepath),
+            'filename': filename
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+def start_recording(application):
+    """Start recording for specific application"""
+    global recording, current_app
+    
+    try:
+        if recording:
+            return jsonify({'success': False, 'error': 'Already recording'})
+        
+        current_app = application
+        recording = True
+        
+        # Start recording thread
+        recording_thread = threading.Thread(target=recording_loop)
+        recording_thread.daemon = True
+        recording_thread.start()
+        
+        return jsonify({'success': True, 'message': 'Recording started'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+def stop_recording():
+    """Stop recording"""
+    global recording
+    
+    try:
+        recording = False
+        return jsonify({'success': True, 'message': 'Recording stopped'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+def recording_loop():
+    """Recording loop that runs in background"""
+    global recording, current_app
+    
+    while recording:
+        try:
+            # Take screenshot every 2 seconds
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+            filename = f"recording_{current_app}_{timestamp}.png"
+            filepath = os.path.join(screenshots_dir, filename)
+            
+            screenshot = pyautogui.screenshot()
+            screenshot.save(filepath)
+            
+            time.sleep(2)  # Wait 2 seconds
+            
+        except Exception as e:
+            print(f"Error in recording loop: {e}")
+            recording = False
+            break
+
+def get_screenshots():
+    """Get list of all screenshots"""
+    try:
+        screenshots = []
+        
+        if os.path.exists(screenshots_dir):
+            for filename in os.listdir(screenshots_dir):
+                if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    filepath = os.path.join(screenshots_dir, filename)
+                    
+                    # Extract application name from filename
+                    parts = filename.split('_')
+                    app_name = parts[1] if len(parts) > 1 else 'Unknown'
+                    
+                    # Get file modification time
+                    mtime = os.path.getmtime(filepath)
+                    timestamp = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    screenshots.append({
+                        'id': filename,
+                        'application': app_name,
+                        'timestamp': timestamp,
+                        'path': os.path.abspath(filepath)
+                    })
+        
+        # Sort by timestamp (newest first)
+        screenshots.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        return jsonify({
+            'success': True,
+            'screenshots': screenshots
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+if __name__ == '__main__':
+    print("Starting Python backend server...")
+    app.run(host='127.0.0.1', port=5000, debug=True, use_reloader=False)

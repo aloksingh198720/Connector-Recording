@@ -1,0 +1,733 @@
+==========================================
+CONNECTOR RECORDING DESKTOP - ALL UI CODE
+==========================================
+
+=== REACT MAIN COMPONENT (App.tsx) ===
+
+import React, { useState, useEffect } from 'react';
+import './index.css';
+
+interface Application {
+  name: string;
+  pid: number;
+  windowTitle: string;
+}
+
+interface Screenshot {
+  id: string;
+  timestamp: string;
+  path: string;
+  application: string;
+}
+
+const App: React.FC = () => {
+  // Add error boundary
+  const [hasError, setHasError] = useState(false);
+  
+  if (hasError) {
+    return (
+      <div style={{ padding: 20, textAlign: 'center', color: 'white', background: '#222' }}>
+        <h2>Something went wrong</h2>
+        <p>Error details have been logged to console</p>
+        <button onClick={() => window.location.reload()}>Reload App</button>
+      </div>
+    );
+  }
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [selectedApp, setSelectedApp] = useState<string>('');
+  const [screenshots, setScreenshots] = useState<Screenshot[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [status, setStatus] = useState<string>('Ready');
+  const [currentScreenshot, setCurrentScreenshot] = useState<string>('');
+  const [error, setError] = useState<string>('');
+
+  // Load applications on component mount
+  useEffect(() => {
+    console.log('App component mounted');
+    
+    // Add global error handler
+    const handleError = (event: ErrorEvent) => {
+      console.error('Global error:', event.error);
+      setError('Application error: ' + event.message);
+      setHasError(true);
+    };
+    
+    // Add unhandled promise rejection handler
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      console.error('Unhandled promise rejection:', event.reason);
+      setError('Promise error: ' + event.reason);
+      setHasError(true);
+    };
+    
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    
+    try {
+      loadApplications();
+    } catch (err) {
+      console.error('Error in useEffect:', err);
+      setError('Failed to load applications');
+      setHasError(true);
+    }
+    
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
+
+  const loadApplications = async () => {
+    try {
+      console.log('Loading applications...');
+      const response = await window.electronAPI.sendPythonCommand({ 
+        type: 'get_running_apps', 
+        data: {} 
+      });
+      console.log('Response:', response);
+      if (response.success) {
+        setApplications(response.apps || []);
+        console.log('Applications loaded:', response.apps?.length || 0);
+      } else {
+        console.error('Failed to load applications:', response.error);
+        setError(response.error || 'Failed to load applications');
+      }
+    } catch (error) {
+      console.error('Error loading applications:', error);
+      setError('Error loading applications: ' + (error as Error).message);
+    }
+  };
+
+  const takeScreenshot = async () => {
+    try {
+      setStatus('Taking screenshot...');
+      const response = await window.electronAPI.sendPythonCommand({
+        type: 'capture_screenshot',
+        data: { application: selectedApp }
+      });
+      
+      if (response.success) {
+        setCurrentScreenshot(response.filepath);
+        setStatus('Screenshot captured successfully');
+        // Refresh screenshots list
+        loadScreenshots();
+      } else {
+        setStatus('Failed to take screenshot');
+      }
+    } catch (error) {
+      setStatus('Error taking screenshot');
+      console.error('Error:', error);
+    }
+  };
+
+  const loadScreenshots = async () => {
+    try {
+      const response = await window.electronAPI.sendPythonCommand({
+        type: 'get_screenshots',
+        data: {}
+      });
+      if (response.success) {
+        setScreenshots(response.screenshots || []);
+      }
+    } catch (error) {
+      console.error('Error loading screenshots:', error);
+    }
+  };
+
+  const startRecording = async () => {
+    if (!selectedApp) {
+      setStatus('Please select an application first');
+      return;
+    }
+    
+    try {
+      setStatus('Starting recording...');
+      const response = await window.electronAPI.sendPythonCommand({
+        type: 'start_recording',
+        data: { application: selectedApp }
+      });
+      
+      if (response.success) {
+        setIsRecording(true);
+        setStatus('Recording started');
+      } else {
+        setStatus('Failed to start recording');
+      }
+    } catch (error) {
+      setStatus('Error starting recording');
+      console.error('Error:', error);
+    }
+  };
+
+  const stopRecording = async () => {
+    try {
+      setStatus('Stopping recording...');
+      const response = await window.electronAPI.sendPythonCommand({
+        type: 'stop_recording',
+        data: {}
+      });
+      
+      if (response.success) {
+        setIsRecording(false);
+        setStatus('Recording stopped');
+        loadScreenshots();
+      } else {
+        setStatus('Failed to stop recording');
+      }
+    } catch (error) {
+      setStatus('Error stopping recording');
+      console.error('Error:', error);
+    }
+  };
+
+  try {
+    return (
+      <div className="app">
+        <div className="header">
+          <h1>🎬 Connector Recording Desktop</h1>
+          <div className="status-bar">
+            <span className={`status ${isRecording ? 'recording' : 'ready'}`}>
+              {isRecording ? '🔴 Recording' : '🟢 Ready'}
+            </span>
+            <span className="status-text">{status}</span>
+          </div>
+        </div>
+        
+        {error && (
+          <div className="error-banner">
+            <span>⚠️ {error}</span>
+            <button onClick={() => setError('')}>✕</button>
+          </div>
+        )}
+
+      <div className="main-content">
+        <div className="left-panel">
+          <div className="section">
+            <h2>📱 Applications</h2>
+            <button 
+              className="refresh-btn"
+              onClick={loadApplications}
+            >
+              🔄 Refresh
+            </button>
+            <div className="app-list">
+              {applications.map((app, index) => (
+                <div 
+                  key={index}
+                  className={`app-item ${selectedApp === app.name ? 'selected' : ''}`}
+                  onClick={() => setSelectedApp(app.name)}
+                >
+                  <div className="app-name">{app.name}</div>
+                  <div className="app-title">{app.windowTitle}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="section">
+            <h2>🎯 Actions</h2>
+            <div className="action-buttons">
+              <button 
+                className="action-btn screenshot-btn"
+                onClick={takeScreenshot}
+                disabled={!selectedApp}
+              >
+                📸 Take Screenshot
+              </button>
+              <button 
+                className={`action-btn ${isRecording ? 'stop-btn' : 'record-btn'}`}
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={!selectedApp && !isRecording}
+              >
+                {isRecording ? '⏹️ Stop Recording' : '🎬 Start Recording'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="right-panel">
+          <div className="section">
+            <h2>🖼️ Current Screenshot</h2>
+            {currentScreenshot ? (
+              <div className="screenshot-viewer">
+                <img 
+                  src={`file://${currentScreenshot}`} 
+                  alt="Current Screenshot"
+                  className="screenshot-image"
+                />
+              </div>
+            ) : (
+              <div className="no-screenshot">
+                No screenshot taken yet
+              </div>
+            )}
+          </div>
+
+          <div className="section">
+            <h2>📁 Screenshots History</h2>
+            <button 
+              className="refresh-btn"
+              onClick={loadScreenshots}
+            >
+              🔄 Refresh
+            </button>
+            <div className="screenshots-list">
+              {screenshots.map((screenshot, index) => (
+                <div key={index} className="screenshot-item">
+                  <div className="screenshot-info">
+                    <div className="screenshot-app">{screenshot.application}</div>
+                    <div className="screenshot-time">{screenshot.timestamp}</div>
+                  </div>
+                  <img 
+                    src={`file://${screenshot.path}`}
+                    alt="Screenshot"
+                    className="screenshot-thumbnail"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+              </div>
+      </div>
+    );
+  } catch (err) {
+    console.error('Render error:', err);
+    return (
+      <div style={{ padding: 20, textAlign: 'center', color: 'white', background: '#222' }}>
+        <h2>Render Error</h2>
+        <p>Error: {err instanceof Error ? err.message : 'Unknown error'}</p>
+        <button onClick={() => window.location.reload()}>Reload App</button>
+      </div>
+    );
+  }
+};
+
+export default App;
+
+=== REACT ENTRY POINT (main.tsx) ===
+
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App';
+import './index.css';
+
+// Add error boundary for the entire app
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error?: Error }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('App crashed:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ 
+          padding: 40, 
+          textAlign: 'center', 
+          color: 'white', 
+          background: '#222',
+          fontFamily: 'sans-serif'
+        }}>
+          <h1>🎬 Connector Recording Desktop</h1>
+          <h2>Application Error</h2>
+          <p>The application encountered an error and crashed.</p>
+          <p>Error: {this.state.error?.message || 'Unknown error'}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            style={{
+              padding: '10px 20px',
+              background: '#667eea',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '16px'
+            }}
+          >
+            Reload Application
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+const root = createRoot(document.getElementById('root')!);
+root.render(
+  <React.StrictMode>
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  </React.StrictMode>
+);
+
+=== CSS STYLES (index.css) ===
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #333;
+  overflow: hidden;
+}
+
+.app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+}
+
+.header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.header h1 {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.error-banner {
+  background: linear-gradient(135deg, #ff5722 0%, #e64a19 100%);
+  color: white;
+  padding: 12px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.error-banner button {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.error-banner button:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.status {
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.status.ready {
+  background: rgba(76, 175, 80, 0.2);
+  color: #4caf50;
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.status.recording {
+  background: rgba(244, 67, 54, 0.2);
+  color: #f44336;
+  border: 1px solid rgba(244, 67, 54, 0.3);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+
+.status-text {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  gap: 20px;
+  padding: 20px;
+  overflow: hidden;
+}
+
+.left-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 300px;
+}
+
+.right-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 400px;
+}
+
+.section {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.section h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.refresh-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 15px;
+  transition: all 0.3s ease;
+}
+
+.refresh-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.app-list {
+  max-height: 300px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.app-item {
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid #e0e0e0;
+  background: #fafafa;
+}
+
+.app-item:hover {
+  background: #f0f0f0;
+  transform: translateX(4px);
+}
+
+.app-item.selected {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: #667eea;
+}
+
+.app-name {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.app-title {
+  font-size: 12px;
+  opacity: 0.8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.action-btn {
+  padding: 12px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.screenshot-btn {
+  background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+  color: white;
+}
+
+.screenshot-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+}
+
+.record-btn {
+  background: linear-gradient(135deg, #ff5722 0%, #e64a19 100%);
+  color: white;
+}
+
+.record-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 87, 34, 0.4);
+}
+
+.stop-btn {
+  background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+  color: white;
+}
+
+.stop-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(244, 67, 54, 0.4);
+}
+
+.screenshot-viewer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  border: 2px dashed #e0e0e0;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.screenshot-image {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.no-screenshot {
+  color: #999;
+  font-style: italic;
+  text-align: center;
+  padding: 40px;
+}
+
+.screenshots-list {
+  max-height: 300px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.screenshot-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #fafafa;
+  border: 1px solid #e0e0e0;
+  transition: all 0.3s ease;
+}
+
+.screenshot-item:hover {
+  background: #f0f0f0;
+  transform: translateX(4px);
+}
+
+.screenshot-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.screenshot-app {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.screenshot-time {
+  font-size: 12px;
+  color: #666;
+}
+
+.screenshot-thumbnail {
+  width: 60px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid #e0e0e0;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+==========================================
+END OF UI CODE
+========================================== 
